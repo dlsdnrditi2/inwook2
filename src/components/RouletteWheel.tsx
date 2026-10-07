@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Participant, WHEEL_COLORS } from '../types';
 import { soundManager } from '../utils/sound';
 
@@ -17,35 +17,67 @@ export const RouletteWheel: React.FC<RouletteWheelProps> = ({
   winnerCandidate,
   isDarkMode,
 }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentRotationRef = useRef<number>(0);
   const animFrameIdRef = useRef<number | null>(null);
   const lastTickIndexRef = useRef<number>(-1);
+  const [size, setSize] = useState<number>(300);
 
   const count = participants.length;
   const sliceAngle = (2 * Math.PI) / (count || 1);
 
-  // Draw the wheel onto the canvas
-  const drawWheel = (rotation: number) => {
+  // Measure container and adapt size for mobile / tablet / desktop
+  useEffect(() => {
+    const updateSize = () => {
+      if (!containerRef.current) return;
+      const containerWidth = containerRef.current.clientWidth;
+      // Fit within available container width, capped at 340px and floor at 260px
+      const targetSize = Math.max(260, Math.min(340, containerWidth - 16));
+      setSize(targetSize);
+    };
+
+    updateSize();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateSize();
+    });
+
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    window.addEventListener('resize', updateSize);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateSize);
+    };
+  }, []);
+
+  // Draw the wheel onto the canvas in logical coordinates
+  const drawWheel = useCallback((rotation: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = Math.min(centerX, centerY) - 18;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    ctx.clearRect(0, 0, width, height);
+    // Reset transform to handle high-DPI scaling cleanly
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, size, size);
 
     if (count === 0) return;
+
+    const centerX = size / 2;
+    const centerY = size / 2;
+    // Leave 26px padding all around so the needle and drop shadows never clip
+    const radius = Math.max(80, size / 2 - 26);
 
     // Draw Wheel Base Outer Ring / Border
     ctx.save();
     ctx.beginPath();
-    ctx.arc(centerX, centerY, radius + 8, 0, 2 * Math.PI);
+    ctx.arc(centerX, centerY, radius + 6, 0, 2 * Math.PI);
     ctx.fillStyle = isDarkMode ? '#1E293B' : '#E2E8F0'; // Slate 800 or Slate 200
     ctx.fill();
     ctx.lineWidth = 3;
@@ -68,7 +100,7 @@ export const RouletteWheel: React.FC<RouletteWheelProps> = ({
       ctx.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length];
       ctx.fill();
 
-      // Subtle slice separator line
+      // Slice separator line
       ctx.lineWidth = 2;
       ctx.strokeStyle = isDarkMode ? '#0F172A' : '#FFFFFF';
       ctx.stroke();
@@ -81,16 +113,20 @@ export const RouletteWheel: React.FC<RouletteWheelProps> = ({
       ctx.textBaseline = 'middle';
       ctx.fillStyle = '#FFFFFF';
       ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-      ctx.shadowBlur = 4;
-      ctx.font = `600 ${count > 8 ? 14 : 16}px Pretendard, sans-serif`;
+      ctx.shadowBlur = 3;
+
+      // Dynamic font size depending on wheel size and participant count
+      const fontSize = Math.max(11, Math.min(count > 8 ? 12 : 14, Math.floor(size / 24)));
+      ctx.font = `600 ${fontSize}px Pretendard, sans-serif`;
 
       // Text truncation if name is long
-      let displayName = participants[i].name || `참가자 ${i + 1}`;
-      if (displayName.length > 8) {
-        displayName = displayName.substring(0, 7) + '…';
+      let displayName = participants[i]?.name || `참가자 ${i + 1}`;
+      const maxCharLen = size < 300 ? 5 : 7;
+      if (displayName.length > maxCharLen) {
+        displayName = displayName.substring(0, maxCharLen - 1) + '…';
       }
 
-      ctx.fillText(displayName, radius - 24, 0);
+      ctx.fillText(displayName, radius - 16, 0);
       ctx.restore();
 
       ctx.restore();
@@ -100,72 +136,68 @@ export const RouletteWheel: React.FC<RouletteWheelProps> = ({
     ctx.save();
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3.5;
     ctx.strokeStyle = isDarkMode ? '#3B82F6' : '#2563EB'; // Blue accent
     ctx.stroke();
     ctx.restore();
 
     // Center Hub / Button Pin
     ctx.save();
+    const hubRadius = Math.max(20, Math.floor(size / 13));
     ctx.beginPath();
-    ctx.arc(centerX, centerY, 32, 0, 2 * Math.PI);
+    ctx.arc(centerX, centerY, hubRadius, 0, 2 * Math.PI);
     ctx.fillStyle = isDarkMode ? '#0F172A' : '#FFFFFF';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 8;
     ctx.fill();
 
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5;
     ctx.strokeStyle = isDarkMode ? '#3B82F6' : '#2563EB';
     ctx.stroke();
 
     // Inner center dot
     ctx.beginPath();
-    ctx.arc(centerX, centerY, 14, 0, 2 * Math.PI);
+    ctx.arc(centerX, centerY, hubRadius * 0.42, 0, 2 * Math.PI);
     ctx.fillStyle = isDarkMode ? '#38BDF8' : '#2563EB';
     ctx.fill();
     ctx.restore();
 
-    // Top Indicator Arrow / Needle (points down from top: 12 o'clock, angle 3*PI/2)
+    // Top Indicator Arrow / Needle (points down from top at 12 o'clock)
     ctx.save();
-    const pointerY = centerY - radius - 6;
+    const pointerY = centerY - radius;
     ctx.translate(centerX, pointerY);
 
     ctx.beginPath();
-    ctx.moveTo(0, 22); // arrow tip pointing down into wheel
-    ctx.lineTo(-14, -6);
-    ctx.lineTo(14, -6);
+    ctx.moveTo(0, 16); // tip pointing down into outer rim
+    ctx.lineTo(-11, -12); // top left
+    ctx.lineTo(11, -12); // top right
     ctx.closePath();
 
-    ctx.fillStyle = '#EF4444'; // Red pointer for immediate visibility
-    ctx.shadowColor = 'rgba(0,0,0,0.4)';
-    ctx.shadowBlur = 8;
+    ctx.fillStyle = '#EF4444'; // Red pointer for clear visibility
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 6;
     ctx.shadowOffsetY = 2;
     ctx.fill();
 
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2;
     ctx.strokeStyle = '#FFFFFF';
     ctx.stroke();
     ctx.restore();
-  };
+  }, [count, sliceAngle, isDarkMode, size, participants]);
 
-  // High DPI canvas setup
+  // Update canvas resolution whenever size or DPR changes
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const size = 360;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = size * dpr;
-    canvas.height = size * dpr;
+    canvas.width = Math.round(size * dpr);
+    canvas.height = Math.round(size * dpr);
     canvas.style.width = `${size}px`;
     canvas.style.height = `${size}px`;
 
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.scale(dpr, dpr);
-    }
     drawWheel(currentRotationRef.current);
-  }, [participants, isDarkMode]);
+  }, [size, drawWheel]);
 
   // Handle spin animation
   useEffect(() => {
@@ -178,19 +210,12 @@ export const RouletteWheel: React.FC<RouletteWheelProps> = ({
     currentRotationRef.current = startRotation;
 
     // Top pointer is at angle 3*PI/2 (270 degrees)
-    // Slices are drawn from startAngle to startAngle + sliceAngle.
-    // Center of winner slice is winnerIndex * sliceAngle + sliceAngle/2.
-    // We want: (startAngle_winner + finalRotation) = 3*PI/2
     const targetSliceCenter = winnerIndex * sliceAngle + sliceAngle / 2;
-    // Add small random offset within slice (within 35% of half-slice)
-    const randomOffset = (Math.random() - 0.5) * (sliceAngle * 0.7);
+    const randomOffset = (Math.random() - 0.5) * (sliceAngle * 0.65);
     const targetSliceAngle = targetSliceCenter + randomOffset;
 
-    // Calculate needed total angle so wheel stops at targetSliceAngle
-    const fullSpins = 6 + Math.floor(Math.random() * 2); // 6 to 7 full revolutions
-    // Top pointer corresponds to 3*PI/2
+    const fullSpins = 6 + Math.floor(Math.random() * 2);
     const targetAngle = 1.5 * Math.PI - targetSliceAngle;
-    // Normalize targetAngle
     const normalizedTarget = ((targetAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
     const totalRotationNeeded = fullSpins * 2 * Math.PI + (normalizedTarget - (startRotation % (2 * Math.PI)));
     const finalTargetRotation = startRotation + totalRotationNeeded;
@@ -198,7 +223,6 @@ export const RouletteWheel: React.FC<RouletteWheelProps> = ({
     const duration = 4800; // ms
     const startTime = performance.now();
 
-    // Quintic deceleration easing curve for suspenseful slowing
     const easeOutQuint = (x: number): number => {
       return 1 - Math.pow(1 - x, 4);
     };
@@ -220,7 +244,6 @@ export const RouletteWheel: React.FC<RouletteWheelProps> = ({
 
       if (currentSliceUnderNeedle !== lastTickIndexRef.current) {
         lastTickIndexRef.current = currentSliceUnderNeedle;
-        // Pitch variation as wheel slows down
         const speedFactor = 1 - progress * 0.5;
         soundManager.playTick(speedFactor);
       }
@@ -228,7 +251,6 @@ export const RouletteWheel: React.FC<RouletteWheelProps> = ({
       if (progress < 1) {
         animFrameIdRef.current = requestAnimationFrame(animate);
       } else {
-        // Animation completed
         currentRotationRef.current = finalTargetRotation;
         drawWheel(finalTargetRotation);
         setTimeout(() => {
@@ -244,14 +266,20 @@ export const RouletteWheel: React.FC<RouletteWheelProps> = ({
         cancelAnimationFrame(animFrameIdRef.current);
       }
     };
-  }, [isSpinning, winnerCandidate]);
+  }, [isSpinning, winnerCandidate, count, sliceAngle, drawWheel, participants, onSpinEnd]);
 
   return (
-    <div className="relative flex flex-col items-center justify-center p-2">
-      <div className="relative w-[320px] h-[320px] sm:w-[360px] sm:h-[360px] flex items-center justify-center drop-shadow-md">
+    <div
+      ref={containerRef}
+      className="w-full flex items-center justify-center p-1 sm:p-2 overflow-hidden"
+    >
+      <div
+        style={{ width: `${size}px`, height: `${size}px` }}
+        className="relative flex items-center justify-center shrink-0"
+      >
         <canvas
           ref={canvasRef}
-          className="w-full h-full select-none cursor-pointer"
+          className="block select-none cursor-pointer touch-none"
         />
       </div>
     </div>
