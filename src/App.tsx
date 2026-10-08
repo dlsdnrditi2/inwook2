@@ -15,6 +15,7 @@ import {
   Sparkles,
   GitFork,
   Scroll,
+  Disc3,
 } from 'lucide-react';
 import { Participant, DrawHistoryItem, DrawMode } from './types';
 import { soundManager } from './utils/sound';
@@ -22,6 +23,7 @@ import { RouletteWheel } from './components/RouletteWheel';
 import { SlotRolling } from './components/SlotRolling';
 import { LadderGame } from './components/LadderGame';
 import { MysteryLots } from './components/MysteryLots';
+import { MarbleRoulette } from './components/MarbleRoulette';
 import { PrizeInput } from './components/PrizeInput';
 import { ParticipantManager } from './components/ParticipantManager';
 import { WinnerModal } from './components/WinnerModal';
@@ -174,6 +176,7 @@ export default function App() {
     { id: 'slot' as DrawMode, label: '스피드 롤링', icon: Sparkles },
     { id: 'ladder' as DrawMode, label: '사다리타기', icon: GitFork },
     { id: 'lots' as DrawMode, label: '제비뽑기', icon: Scroll },
+    { id: 'marble' as DrawMode, label: '마블 룰렛', icon: Disc3 },
   ];
 
   return (
@@ -190,7 +193,7 @@ export default function App() {
                 심플 추첨기
               </h1>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                4가지 추첨 게임 · 1인 당첨
+                5가지 추첨 게임 · 1인 당첨
               </p>
             </div>
           </div>
@@ -235,8 +238,8 @@ export default function App() {
 
         {/* 4 Games Interactive Playground */}
         <div className="w-full bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-6 shadow-sm flex flex-col items-center">
-          {/* Responsive 4-Game Segmented Tabs */}
-          <div className="w-full max-w-xl grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg mb-4 sm:mb-6 border border-slate-200/70 dark:border-slate-700/70">
+          {/* Responsive 5-Game Segmented Tabs */}
+          <div className="w-full max-w-2xl grid grid-cols-3 sm:grid-cols-5 gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg mb-4 sm:mb-6 border border-slate-200/70 dark:border-slate-700/70">
             {GAME_MODES.map((game) => {
               const Icon = game.icon;
               const isActive = drawMode === game.id;
@@ -249,7 +252,7 @@ export default function App() {
                     soundManager.playButtonTap();
                     setDrawMode(game.id);
                   }}
-                  className={`flex items-center justify-center gap-1.5 py-2 px-2 text-xs sm:text-sm font-semibold rounded-md transition-all cursor-pointer ${
+                  className={`flex items-center justify-center gap-1.5 py-2 px-1.5 text-xs sm:text-sm font-semibold rounded-md transition-all cursor-pointer ${
                     isActive
                       ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
@@ -300,6 +303,16 @@ export default function App() {
                 winnerCandidate={winnerCandidate}
               />
             )}
+            {drawMode === 'marble' && (
+              <MarbleRoulette
+                participants={participants}
+                prize={prize}
+                isDrawing={isDrawing}
+                onDrawEnd={handleDrawComplete}
+                winnerCandidate={winnerCandidate}
+                isDarkMode={isDarkMode}
+              />
+            )}
           </div>
 
           {/* Primary Start Draw Action Button */}
@@ -327,6 +340,8 @@ export default function App() {
                       ? '사다리 타기 시작!'
                       : drawMode === 'lots'
                       ? '제비뽑기 시작!'
+                      : drawMode === 'marble'
+                      ? '마블 레이스 시작!'
                       : '추첨 시작하기 (1명 선정)'}
                   </span>
                 </>

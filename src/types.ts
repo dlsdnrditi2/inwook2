@@ -11,7 +11,7 @@ export interface DrawHistoryItem {
   totalParticipants: number;
 }
 
-export type DrawMode = 'roulette' | 'slot' | 'ladder' | 'lots';
+export type DrawMode = 'roulette' | 'slot' | 'ladder' | 'lots' | 'marble';
 
 // Sophisticated Blue & Slate/Cool Gray color palette for wheel segments
 export const WHEEL_COLORS = [
